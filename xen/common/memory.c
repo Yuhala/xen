@@ -155,7 +155,7 @@ static struct page_info *get_page_from_pool(struct page_info *pool, unsigned int
     pg = &pool[pool_index];                
     //(*pg).v.free.order = order;       
     pool_index += (1 << order);           
-
+   //git change test...yuhala page poolsdf
     return pg;
 }
 
