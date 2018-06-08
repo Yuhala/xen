@@ -1212,8 +1212,7 @@ static int meminit_pv(struct xc_dom_image *dom)
                  pfn += SUPERPAGE_2MB_NR_PFNS, j++)
                 extents[j] = dom->p2m_host[pfn]; 
                                         
-        
-             rc = xc_domain_populate_physmap(dom->xch, dom->guest_domid, count,
+                rc = xc_domain_populate_physmap(dom->xch, dom->guest_domid, count,
                                             SUPERPAGE_2MB_SHIFT, memflags,
                                             extents);
 

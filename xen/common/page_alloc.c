@@ -691,12 +691,16 @@ static struct page_info *alloc_heap_pages(
 {
     unsigned int i, j, zone = 0, nodemask_retry = 0;
     nodeid_t first_node, node = MEMF_get_node(memflags), req_node = node;
+    
     unsigned long request = 1UL << order;
     struct page_info *pg;
     nodemask_t nodemask = (d != NULL ) ? d->node_affinity : node_online_map;
     bool_t need_tlbflush = 0;
     uint32_t tlbflush_timestamp = 0;
 
+    /* Get twice as much from the heap for the pool ....pyuhala*/
+     //   order++;
+   // request = 1UL << order;
     /* Make sure there are enough bits in memflags for nodeID. */
     BUILD_BUG_ON((_MEMF_bits - _MEMF_node) < (8 * sizeof(nodeid_t)));
 
