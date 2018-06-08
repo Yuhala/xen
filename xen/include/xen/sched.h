@@ -369,9 +369,9 @@ struct domain
     int64_t          time_offset_seconds;
 
     /* Begin added attributes....pyuhala */
-    struct page_info *page_pool;  /* Page pool ie ..large superpage..pyuhala */
-    unsigned long pool_full;  /* Boolean to tell us if this pool contains pages */
-    unsigned long pool_index; /* Index of the present page which has not yet been taken */
+    //struct page_info *page_pool;  /* Page pool ie ..large superpage..pyuhala */
+    //unsigned long pool_full;  /* Boolean to tell us if this pool contains pages */
+    //unsigned long pool_index; /* Index of the present page which has not yet been taken */
 
     /* End added attributes....pyuhala */
 

@@ -46,8 +46,9 @@ struct memop_args
 };
 
  struct page_info *page_pool;  /* Page pool ie ..large superpage..pyuhala */
- unsigned long pool_full;  /* Boolean to tell us if this pool contains pages */
- unsigned long pool_index; /* Index of the present page which has not yet been taken */
+ unsigned long pool_full=0;  /* Boolean to tell us if this pool contains pages */
+ unsigned long pool_index=0; /* Index of the present page which has not yet been taken */
+ unsigned long free_pages=0; /* Number of 4kb free pages */
 
 //contig_attrib attrib;
 
@@ -153,9 +154,12 @@ static struct page_info *get_page_from_pool(struct page_info *pool, unsigned int
 {
     struct page_info *pg = NULL;
     pg = &pool[pool_index];                
-    //(*pg).v.free.order = order;       
-    pool_index += (1 << order);           
-   //git change test...yuhala page poolsdf
+    //(*pg).v.free.order = order; 
+    free_pages -=  (1 << order);       
+    pool_index += (1 << order);  
+          
+     
+
     return pg;
 }
 
@@ -170,11 +174,6 @@ static void populate_physmap(struct memop_args *a)
     unsigned long temp = 0, base = 0;
     unsigned int count = 0;
 
-
-
-        if(d->is_shutting_down){
-             printk(KERN_WARNING "Domain is shutting down...populating physical map...\n");
-        }
    
     if (!guest_handle_subrange_okay(a->extent_list, a->nr_done,
                                     a->nr_extents - 1))
@@ -209,9 +208,9 @@ static void populate_physmap(struct memop_args *a)
                 //printk(KERN_INFO "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy 3\n");
                 goto out;
             }
-        }
+        } 
         else
-        {  /* No need to touch direct mapping as they are not used in page tables ...pyuhala */
+        {    /* No need to touch direct mapping as they are not used in page tables ...pyuhala */
             if (is_domain_direct_mapped(d))
             {
                 printk(KERN_WARNING "Domain is direct mapped \n");
@@ -244,17 +243,29 @@ static void populate_physmap(struct memop_args *a)
                 // page= alloc_domheap_pages(d, a->extent_order, a->memflags);
 
                 /* If pool is empty, initialize page pool from the heap with a large extent order (RAM-order + 1) */
-                
+               printk(KERN_WARNING " Pool size : %lu \n", free_pages);
+               
                 if(!pool_full){
                      printk(KERN_WARNING "Initializing page pool... ... ... \n");
                     page_pool = alloc_domheap_pages(d, (a->extent_order), a->memflags);
                     printk(KERN_WARNING "Page pool initialisation successful... \n");
                     pool_full = 1; 
-                    break;
-                }                                          
+                    free_pages = 1UL << a->extent_order;
+                  
                     
-              
-                 page= get_page_from_pool(page_pool,a->extent_order);
+                }                                          
+                printk(KERN_WARNING " Pool size : %lu \n", free_pages);
+                       
+                if(free_pages){
+                     page= get_page_from_pool(page_pool,a->extent_order);
+                      printk(KERN_WARNING " Got page from pool ... \n");
+                }
+                else{
+                   page= alloc_domheap_pages(d, a->extent_order, a->memflags);
+                   pool_full = 0; 
+                    printk(KERN_WARNING " Got page from heap ... \n");
+                }
+                 printk(KERN_WARNING " Pool size : %lu \n", free_pages);
                 
               
 

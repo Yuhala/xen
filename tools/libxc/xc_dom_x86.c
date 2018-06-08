@@ -1210,12 +1210,7 @@ static int meminit_pv(struct xc_dom_image *dom)
             for (pfn = pfn_base_idx, j = 0;
                  pfn < pfn_base_idx + (count << SUPERPAGE_2MB_SHIFT);
                  pfn += SUPERPAGE_2MB_NR_PFNS, j++)
-                extents[j] = dom->p2m_host[pfn];
-
-            /* This first call is for creating the page pool with a large extent order */    
-            rc = xc_domain_populate_physmap(dom->xch, dom->guest_domid, count,
-                                            18, memflags,
-                                            extents);
+                extents[j] = dom->p2m_host[pfn]; 
                                         
         
              rc = xc_domain_populate_physmap(dom->xch, dom->guest_domid, count,
