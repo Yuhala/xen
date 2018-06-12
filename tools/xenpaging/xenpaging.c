@@ -346,6 +346,7 @@ static struct xenpaging *xenpaging_init(int argc, char *argv[])
                              PROT_READ | PROT_WRITE, &mmap_pfn, 1);
     if ( !paging->vm_event.ring_page )
     {
+         fprintf(stderr, "Function: %s \n", __func__);
         /* Map failed, populate ring page */
         rc = xc_domain_populate_physmap_exact(paging->xc_handle, 
                                               paging->vm_event.domain_id,

@@ -164,6 +164,7 @@ int populate_pfns(struct xc_sr_context *ctx, unsigned count,
 
     if ( nr_pfns )
     {
+         fprintf(stderr, "Function: %s \n", __func__);
         rc = xc_domain_populate_physmap_exact(
             xch, ctx->domid, nr_pfns, 0, 0, mfns);
         if ( rc )

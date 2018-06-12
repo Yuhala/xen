@@ -275,6 +275,7 @@ void xen_ram_alloc(ram_addr_t ram_addr, ram_addr_t size, MemoryRegion *mr)
         pfn_list[i] = (ram_addr >> TARGET_PAGE_BITS) + i;
     }
 
+     fprintf(stderr, "Function: %s \n", __func__);
     if (xc_domain_populate_physmap_exact(xen_xc, xen_domid, nr_pfn, 0, 0, pfn_list)) {
         hw_error("xen: failed to populate ram at " RAM_ADDR_FMT, ram_addr);
     }

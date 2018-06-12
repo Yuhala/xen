@@ -239,12 +239,12 @@ static void populate_physmap(struct memop_args *a)
             }
             else
             {
-                // page= alloc_domheap_pages(d, a->extent_order, a->memflags);
+                page= alloc_domheap_pages(d, a->extent_order, a->memflags);
 
                 /* If pool is empty, initialize page pool from the heap with a large extent order (RAM-order + 1) */
-               printk(KERN_WARNING " Pool size : %lu \n", free_pages);
+               //printk(KERN_WARNING " Pool size : %lu \n", free_pages);
                
-                if(!pool_full){
+                if(0){
 
                     printk(KERN_WARNING "Initializing page pool... ... ... \n");
                     page_pool = alloc_domheap_pages(d, (a->extent_order), a->memflags);
@@ -255,19 +255,19 @@ static void populate_physmap(struct memop_args *a)
                     
                 }       
                                                    
-                printk(KERN_WARNING " Pool size : %lu \n", free_pages);
+                //printk(KERN_WARNING " Pool size : %lu \n", free_pages);
                 //  page= freepages ? get_page_from_pool(page_pool,a->extent_order): alloc_domheap_pages(d, a->extent_order, a->memflags);
                        
-                if(free_pages){
+                if(0){
                      page= get_page_from_pool(page_pool,a->extent_order);
                       printk(KERN_WARNING " Got page from pool ... \n");
                 }
-                else{
+                if(0){
                    page= alloc_domheap_pages(d, a->extent_order, a->memflags);
                    //pool_full = 0; 
                     printk(KERN_WARNING " Got page from heap ... \n");
                 }
-                 printk(KERN_WARNING " Pool size : %lu \n", free_pages);
+                // printk(KERN_WARNING " Pool size : %lu \n", free_pages);
                 
               
 

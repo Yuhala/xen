@@ -75,6 +75,7 @@ void *xc_vm_event_enable(xc_interface *xch, domid_t domain_id, int param,
     rc1 = xc_get_pfn_type_batch(xch, domain_id, 1, &mmap_pfn);
     if ( rc1 || mmap_pfn & XEN_DOMCTL_PFINFO_XTAB )
     {
+         fprintf(stderr, "Function: %s \n", __func__);
         /* Page not in the physmap, try to populate it */
         rc1 = xc_domain_populate_physmap_exact(xch, domain_id, 1, 0, 0,
                                               &ring_pfn);
