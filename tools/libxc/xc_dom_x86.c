@@ -63,7 +63,7 @@
     (X86_HVM_END_SPECIAL_REGION - X86_HVM_NR_SPECIAL_PAGES + (x))
 
 #define NR_IOREQ_SERVER_PAGES 8
-#define ioreq_server_pfn(x) (special_pfn(0) - NR_IOREQ_SERVER_PAGES + (x))
+#define ioreq_server_pfn(x) (special_pfn(0) + NR_IOREQ_SERVER_PAGES + (x))
 
 #define bits_to_mask(bits) (((xen_vaddr_t)1 << (bits)) - 1)
 #define round_down(addr, mask) ((addr) & ~(mask))
@@ -606,11 +606,19 @@ static int alloc_magic_pages_hvm(struct xc_dom_image *dom)
 
     rc = xc_domain_populate_physmap_exact(xch, domid, X86_HVM_NR_SPECIAL_PAGES,
                                           0, 0, special_array);
+
+
+
     if (rc != 0)
     {
         DOMPRINTF("Could not allocate special pages.");
         goto error_out;
     }
+    fprintf(stderr, " ... Special array begin ...\n");
+ for (i = 0; i < X86_HVM_NR_SPECIAL_PAGES; i++)
+     fprintf(stderr, "PFN: %lx \n",special_array[i]);
+       
+   fprintf(stderr, "... Special array end ... \n");  
 
     if (xc_clear_domain_pages(xch, domid, special_pfn(0),
                               X86_HVM_NR_SPECIAL_PAGES))
@@ -662,6 +670,9 @@ static int alloc_magic_pages_hvm(struct xc_dom_image *dom)
         for (i = 0; i < NR_IOREQ_SERVER_PAGES; i++)
             ioreq_server_array[i] = ioreq_server_pfn(i);
 
+
+
+
         
         fprintf(stderr, "Function: %s \n", __func__);
         rc = xc_domain_populate_physmap_exact(xch, domid, NR_IOREQ_SERVER_PAGES, 0,
@@ -672,6 +683,12 @@ static int alloc_magic_pages_hvm(struct xc_dom_image *dom)
             goto error_out;
         }
 
+     fprintf(stderr, " ... IOREQ server array begin ...\n");
+        for (i = 0; i < NR_IOREQ_SERVER_PAGES; i++)
+             fprintf(stderr, "PFN: %lx \n", ioreq_server_array[i]);
+       
+     fprintf(stderr, "... IOREQ server array end ... \n"); 
+     
         if (xc_clear_domain_pages(xch, domid, ioreq_server_pfn(0),
                                   NR_IOREQ_SERVER_PAGES))
             goto error_out;

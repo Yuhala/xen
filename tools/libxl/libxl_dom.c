@@ -967,7 +967,7 @@ int libxl__build_hvm(libxl__gc *gc, uint32_t domid,
         info->device_model_version != LIBXL_DEVICE_MODEL_VERSION_NONE ?
         true : false;
     //put device model to false to prevent vga hole
-   // device_model=false;
+    //device_model=false;
     xc_dom_loginit(ctx->xch);
 
     dom = xc_dom_allocate(ctx->xch, info->cmdline, NULL);

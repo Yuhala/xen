@@ -1,5 +1,6 @@
+
 /******************************************************************************
- * memory.c
+ * memory.c 
  *
  * Code to handle memory-related requests.
  *
@@ -254,17 +255,17 @@ static void populate_physmap(struct memop_args *a)
                                   
                     
                 }       
-                                                   
+                   // page= get_page_from_pool(page_pool,a->extent_order);                                
                 //printk(KERN_WARNING " Pool size : %lu \n", free_pages);
                 //  page= freepages ? get_page_from_pool(page_pool,a->extent_order): alloc_domheap_pages(d, a->extent_order, a->memflags);
                        
                 if(0){
-                     page= get_page_from_pool(page_pool,a->extent_order);
+                      page= get_page_from_pool(page_pool,a->extent_order);
                       printk(KERN_WARNING " Got page from pool ... \n");
                 }
                 if(0){
-                   page= alloc_domheap_pages(d, a->extent_order, a->memflags);
-                   //pool_full = 0; 
+                    page= alloc_domheap_pages(d, a->extent_order, a->memflags);
+                    //pool_full = 0; 
                     printk(KERN_WARNING " Got page from heap ... \n");
                 }
                 // printk(KERN_WARNING " Pool size : %lu \n", free_pages);
@@ -301,7 +302,7 @@ static void populate_physmap(struct memop_args *a)
                 temp = mfn;
             }
 
-            printk(KERN_WARNING " MFN: %lx Extent Order : %u \n", mfn, a->extent_order);
+            printk(KERN_WARNING " MFN: %lx GPFN: %lx Extent Order : %u \n", mfn,gpfn, a->extent_order);
             guest_physmap_add_page(d, gpfn, mfn, a->extent_order);
 
             if (!paging_mode_translate(d))

@@ -2563,7 +2563,19 @@ void xen_vga_populate_vram(uint64_t vram_addr, uint32_t vga_ram_size)
     for (i = 0; i < nr_pfn; i++)
         pfn_list[i] = (vram_addr >> TARGET_PAGE_BITS) + i;
     
-     fprintf(stderr, "Function: %s \n", __func__);
+
+     printf( "Function: %s \n", __func__);
+     //printk(KERN_WARNING "Function: %s \n", __func__);
+    /* Print video ram pfns ...pyuhala */
+    printf( " ... Video ram pfn begin ...\n");
+         for (i = 0; i < nr_pfn; i++)
+          printf(stderr, " PFN: %lx \n", pfn_list[i]);
+            // fprintf(stderr, "PFN: %lx \n", ioreq_server_array[i]);
+       
+     printf( "... Video ram pfn end ... \n"); 
+
+
+
     if (xc_domain_populate_physmap_exact(xc_handle, domid, nr_pfn, 0, 0, pfn_list)) {
         fprintf(stderr, "Failed to populate video ram\n");
         exit(1);
