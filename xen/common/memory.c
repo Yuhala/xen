@@ -46,10 +46,10 @@ struct memop_args
     int preempted;        /* Was the hypercall preempted? */
 };
 
- struct page_info *page_pool;  /* Page pool ie ..large superpage..pyuhala */
- unsigned long pool_full=0;  /* Boolean to tell us if this pool contains pages */
- unsigned long pool_index=0; /* Index of the present page which has not yet been taken */
- unsigned long free_pages=0; /* Number of 4kb free pages */
+ struct page_info *page_pool; /* Page pool ie ..large superpage..pyuhala */
+ unsigned long pool_full = 0;  /* Boolean to tell us if this pool contains pages */
+ unsigned long pool_index = 0; /* Index of the present page which has not yet been taken */
+ unsigned long free_pages = 0; /* Number of 4kb free pages */
 
 //contig_attrib attrib;
 
@@ -148,7 +148,7 @@ out:
 
 /* Get a page/superpage of specific order from page pool 
  * We create pool so as to ensure contiguous memory
- * allocations for our vms...pyuhala
+ * allocations for our vms ... pyuhala
  */
 
 static struct page_info *get_page_from_pool(struct page_info *pool, unsigned int order)
@@ -240,7 +240,7 @@ static void populate_physmap(struct memop_args *a)
             }
             else
             {
-                page= alloc_domheap_pages(d, a->extent_order, a->memflags);
+                page = alloc_domheap_pages(d, a->extent_order, a->memflags);
 
                 /* If pool is empty, initialize page pool from the heap with a large extent order (RAM-order + 1) */
                //printk(KERN_WARNING " Pool size : %lu \n", free_pages);
@@ -280,7 +280,7 @@ static void populate_physmap(struct memop_args *a)
                                  "Could not allocate order=%u extent: id=%d memflags=%#x (%u of %u)\n",
                                  a->extent_order, d->domain_id, a->memflags,
                                  i, a->nr_extents);
-                    //printk(KERN_WARNING "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy 5\n");
+                    //printk(KERN_WARNING "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy 5\n");
                     goto out;
                 }
 
@@ -314,7 +314,7 @@ static void populate_physmap(struct memop_args *a)
                 /* Inform the domain of the new page's machine address. */
                 if (unlikely(__copy_to_guest_offset(a->extent_list, i, &mfn, 1)))
                 {
-                    //printk(KERN_INFO "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy 6\n");
+                    //printk(KERN_INFO "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy 6\n");
                     goto out;
                 }
             }

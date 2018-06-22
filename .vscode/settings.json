@@ -2,5 +2,6 @@
     "files.associations": {
         "*.s": "c",
         "array": "c"
-    }
+    },
+    "C_Cpp.dimInactiveRegions": false
 }

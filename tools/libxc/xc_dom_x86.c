@@ -173,6 +173,7 @@ static int count_pgtables(struct xc_dom_image *dom, xen_vaddr_t from,
         map->lvls[l].pfn = dom->pfn_alloc_end + map->area.pgtables;
         if (l == domx86->params->levels - 1)
         {
+
             /* Top level page table in first mapping only. */
             if (domx86->n_mappings == 0)
             {
@@ -607,18 +608,16 @@ static int alloc_magic_pages_hvm(struct xc_dom_image *dom)
     rc = xc_domain_populate_physmap_exact(xch, domid, X86_HVM_NR_SPECIAL_PAGES,
                                           0, 0, special_array);
 
-
-
     if (rc != 0)
     {
         DOMPRINTF("Could not allocate special pages.");
         goto error_out;
     }
     fprintf(stderr, " ... Special array begin ...\n");
- for (i = 0; i < X86_HVM_NR_SPECIAL_PAGES; i++)
-     fprintf(stderr, "PFN: %lx \n",special_array[i]);
-       
-   fprintf(stderr, "... Special array end ... \n");  
+    for (i = 0; i < X86_HVM_NR_SPECIAL_PAGES; i++)
+        fprintf(stderr, "PFN: %lx \n", special_array[i]);
+
+    fprintf(stderr, "... Special array end ... \n");
 
     if (xc_clear_domain_pages(xch, domid, special_pfn(0),
                               X86_HVM_NR_SPECIAL_PAGES))
@@ -670,10 +669,6 @@ static int alloc_magic_pages_hvm(struct xc_dom_image *dom)
         for (i = 0; i < NR_IOREQ_SERVER_PAGES; i++)
             ioreq_server_array[i] = ioreq_server_pfn(i);
 
-
-
-
-        
         fprintf(stderr, "Function: %s \n", __func__);
         rc = xc_domain_populate_physmap_exact(xch, domid, NR_IOREQ_SERVER_PAGES, 0,
                                               0, ioreq_server_array);
@@ -683,12 +678,12 @@ static int alloc_magic_pages_hvm(struct xc_dom_image *dom)
             goto error_out;
         }
 
-     fprintf(stderr, " ... IOREQ server array begin ...\n");
+        fprintf(stderr, " ... IOREQ server array begin ...\n");
         for (i = 0; i < NR_IOREQ_SERVER_PAGES; i++)
-             fprintf(stderr, "PFN: %lx \n", ioreq_server_array[i]);
-       
-     fprintf(stderr, "... IOREQ server array end ... \n"); 
-     
+            fprintf(stderr, "PFN: %lx \n", ioreq_server_array[i]);
+
+        fprintf(stderr, "... IOREQ server array end ... \n");
+
         if (xc_clear_domain_pages(xch, domid, ioreq_server_pfn(0),
                                   NR_IOREQ_SERVER_PAGES))
             goto error_out;
@@ -1132,8 +1127,6 @@ static int meminit_pv(struct xc_dom_image *dom)
         if (rc)
             return rc;
     }
-    
-    
 
     /* try to claim pages for early warning of insufficient memory avail */
     if (dom->claim_enabled)
@@ -1161,7 +1154,7 @@ static int meminit_pv(struct xc_dom_image *dom)
         nr_vmemranges = 1;
         vmemranges = dummy_vmemrange;
         vmemranges[0].start = 0;
-        vmemranges[0].end = (uint64_t)dom->total_pages << PAGE_SHIFT;
+        vmemranges[0].end = (uint64_t)dom->total_pages << PAGE_SHIFT; // vmem starts at 0 and ends at totalpages*pagesize bytes
         vmemranges[0].flags = 0;
         vmemranges[0].nid = 0;
 
@@ -1227,9 +1220,9 @@ static int meminit_pv(struct xc_dom_image *dom)
             for (pfn = pfn_base_idx, j = 0;
                  pfn < pfn_base_idx + (count << SUPERPAGE_2MB_SHIFT);
                  pfn += SUPERPAGE_2MB_NR_PFNS, j++)
-                extents[j] = dom->p2m_host[pfn]; 
-                                        
-                rc = xc_domain_populate_physmap(dom->xch, dom->guest_domid, count,
+                extents[j] = dom->p2m_host[pfn];
+
+            rc = xc_domain_populate_physmap(dom->xch, dom->guest_domid, count,
                                             SUPERPAGE_2MB_SHIFT, memflags,
                                             extents);
 
@@ -1240,7 +1233,7 @@ static int meminit_pv(struct xc_dom_image *dom)
             pfn = pfn_base_idx;
             for (j = 0; j < rc; j++)
             {
-                fprintf(stderr,"Expanding the returned mfns ...\n");
+                fprintf(stderr, "Expanding the returned mfns ...\n");
                 mfn = extents[j];
                 for (k = 0; k < SUPERPAGE_2MB_NR_PFNS; k++, pfn++)
                     dom->p2m_host[pfn] = mfn + k;
@@ -1248,14 +1241,12 @@ static int meminit_pv(struct xc_dom_image *dom)
             pfn_base_idx = pfn;
         }
 
-        
-         /* Most of my pv vms don't get in here. So no populating exact occurs */     
-        
-         
+        /* Most of my pv vms don't get in here. So no populating exact occurs */
+
         for (j = pfn_base_idx - pfn_base; j < pages; j += allocsz)
         {
             allocsz = min_t(uint64_t, 1024 * 1024, pages - j);
-         fprintf(stderr, "Function: %s \n", __func__);
+            fprintf(stderr, "Function: %s \n", __func__);
             rc = xc_domain_populate_physmap_exact(dom->xch, dom->guest_domid,
                                                   allocsz, 0, memflags, &dom->p2m_host[pfn_base + j]);
 
@@ -1295,6 +1286,131 @@ static int meminit_pv(struct xc_dom_image *dom)
         return 1;
 }*/
 
+/* Initializes 1G page pool to ensure contiguous memory for MFNs */
+
+static int poolinit_hvm(struct xc_dom_image *dom)
+{
+
+    int rc;
+    xen_pfn_t pfn, total, pfn_base;
+    int i, j;
+
+    xen_vmemrange_t dummy_vmemrange[1];
+    unsigned int dummy_vnode_to_pnode[1];
+    xen_vmemrange_t *vmemranges;
+    unsigned int *vnode_to_pnode;
+    unsigned int nr_vmemranges, nr_vnodes;
+    unsigned int temp;
+
+    temp = dom->total_pages;
+    dom->total_pages = 262144;
+
+    if (dom->claim_enabled)
+    {
+        rc = xc_domain_claim_pages(dom->xch, dom->guest_domid,
+                                   dom->total_pages);
+        if (rc)
+            return rc;
+    }
+
+    fprintf(stderr, "Total pool pages: %lu ", dom->total_pages);
+
+    if (dom->nr_vmemranges == 0)
+    {
+        nr_vmemranges = 1;
+        vmemranges = dummy_vmemrange;
+        vmemranges[0].start = 0;
+        vmemranges[0].end = (uint64_t)dom->total_pages << PAGE_SHIFT;
+        vmemranges[0].flags = 0;
+        vmemranges[0].nid = 0;
+
+        nr_vnodes = 1;
+        vnode_to_pnode = dummy_vnode_to_pnode;
+        vnode_to_pnode[0] = XC_NUMA_NO_NODE;
+    }
+    else
+    {
+        nr_vmemranges = dom->nr_vmemranges;
+        nr_vnodes = dom->nr_vnodes;
+        vmemranges = dom->vmemranges;
+        vnode_to_pnode = dom->vnode_to_pnode;
+    }
+
+    total = dom->p2m_size = 0;
+
+    for (i = 0; i < nr_vmemranges; i++)
+    {
+        total += ((vmemranges[i].end - vmemranges[i].start) >> PAGE_SHIFT);
+        dom->p2m_size = max(dom->p2m_size,
+                            (xen_pfn_t)(vmemranges[i].end >> PAGE_SHIFT));
+    }
+
+    fprintf(stderr, "\nHVM Total pool pages: %lu \n", dom->total_pages);
+    if (total != dom->total_pages)
+    {
+        fprintf(stderr, "Dom panic total mismatch");
+        xc_dom_panic(dom->xch, XC_INTERNAL_ERROR,
+                     "%s: vNUMA page count mismatch (0x%" PRIpfn " != 0x%" PRIpfn ")",
+                     __func__, total, dom->total_pages);
+        return -EINVAL;
+    }
+
+    dom->p2m_host = xc_dom_malloc(dom, sizeof(xen_pfn_t) * dom->p2m_size);
+    if (dom->p2m_host == NULL)
+        return -EINVAL;
+    for (pfn = 0; pfn < dom->p2m_size; pfn++)
+        dom->p2m_host[pfn] = INVALID_PFN;
+
+    /* allocate memory for page pool */
+    for (i = 0; i < nr_vmemranges; i++)
+    {
+
+        unsigned int memflags;
+        uint64_t pages, super_pages;
+        unsigned int pnode = vnode_to_pnode[vmemranges[i].nid];
+        xen_pfn_t extents[262144];
+        xen_pfn_t pfn_base_idx;
+
+        memflags = 0;
+        if (pnode != XC_NUMA_NO_NODE)
+            memflags |= XENMEMF_exact_node(pnode);
+
+        pages = (vmemranges[i].end - vmemranges[i].start) >> PAGE_SHIFT;
+        super_pages = pages >> 18;
+        pfn_base = vmemranges[i].start >> PAGE_SHIFT;
+
+        for (pfn = pfn_base; pfn < pfn_base + pages; pfn++)
+            dom->p2m_host[pfn] = pfn;
+
+        pfn_base_idx = pfn_base;
+        while (super_pages)
+        {
+            uint64_t count = min_t(uint64_t, super_pages, 262144);
+            super_pages -= count;
+
+            for (pfn = pfn_base_idx, j = 0;
+                 pfn < pfn_base_idx + (count << 18);
+                 pfn += 262144, j++)
+                extents[j] = dom->p2m_host[pfn];
+
+            // fprintf(stderr,"About to create 1G page pool...\n");
+
+            rc = xc_domain_populate_physmap(dom->xch, dom->guest_domid, count,
+                                            18, memflags,
+                                            extents);
+
+            if (rc < 0)
+                return rc;
+        }
+
+        rc = 0;
+    }
+
+    xc_domain_claim_pages(dom->xch, dom->guest_domid, 0 /* cancel claim */);
+    dom->total_pages = temp;
+    return rc;
+}
+
 static int meminit_hvm(struct xc_dom_image *dom)
 {
 
@@ -1304,7 +1420,7 @@ static int meminit_hvm(struct xc_dom_image *dom)
     // unsigned long cur_pages, cur_pfn;
     int rc;
     xen_pfn_t pfn, allocsz, mfn, total, pfn_base;
-    int i, j, k;
+    int i, j, k, pool;
     // unsigned long stat_normal_pages = 0, stat_2mb_pages = 0,
     //stat_1gb_pages = 0;
     // unsigned int memflags = 0;
@@ -1317,7 +1433,7 @@ static int meminit_hvm(struct xc_dom_image *dom)
     unsigned int nr_vmemranges, nr_vnodes;
     // xc_interface *xch = dom->xch;
     // uint32_t domid = dom->guest_domid;
-     //unsigned int videomem;
+    //unsigned int videomem;
 
     /* try to claim pages for early warning of insufficient memory avail */
     if (dom->claim_enabled)
@@ -1327,7 +1443,7 @@ static int meminit_hvm(struct xc_dom_image *dom)
         if (rc)
             return rc;
     }
-    fprintf(stderr,"Total pages: %lu ",dom->total_pages);
+    fprintf(stderr, "Total pages: %lu ", dom->total_pages);
     //  dom->total_pages+=1024;
     // fprintf(stderr,"HVM: Total pages: %u ",dom->total_pages);
     /* Setup dummy vNUMA information if it's not provided. Note
@@ -1341,6 +1457,12 @@ static int meminit_hvm(struct xc_dom_image *dom)
      * Note that the following hunk is just for the convenience of
      * allocation code. No defaulting happens in libxc.
      */
+
+    if (0)
+    {
+        pool = poolinit_hvm(dom);
+    }
+
     if (dom->nr_vmemranges == 0)
     {
         nr_vmemranges = 1;
@@ -1368,10 +1490,9 @@ static int meminit_hvm(struct xc_dom_image *dom)
         total += ((vmemranges[i].end - vmemranges[i].start) >> PAGE_SHIFT);
         dom->p2m_size = max(dom->p2m_size,
                             (xen_pfn_t)(vmemranges[i].end >> PAGE_SHIFT));
-
     }
 
-     fprintf(stderr, "\nHVM Total pages: %lu \n", dom->total_pages);
+    fprintf(stderr, "\nHVM Total pages: %lu \n", dom->total_pages);
     if (total != dom->total_pages)
     {
         fprintf(stderr, "Dom panic total mismatch");
@@ -1438,9 +1559,9 @@ static int meminit_hvm(struct xc_dom_image *dom)
             }
             pfn_base_idx = pfn;
         }
-      
-      /* */
-      fprintf(stderr,"j0: %lu ...jend: %" PRIu64 " \n",pfn_base_idx - pfn_base,pages);
+
+        /* */
+        fprintf(stderr, "j0: %lu ...jend: %" PRIu64 " \n", pfn_base_idx - pfn_base, pages);
         for (j = pfn_base_idx - pfn_base; j < pages; j += allocsz)
         {
             allocsz = min_t(uint64_t, 1024 * 1024, pages - j);
