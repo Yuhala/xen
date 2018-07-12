@@ -273,6 +273,7 @@ page_list_add_tail(struct page_info *page, struct page_list_head *head)
     if ( head->next )
     {
         page->list.prev = page_to_pdx(head->tail);
+        
         head->tail->list.next = page_to_pdx(page);
     }
     else

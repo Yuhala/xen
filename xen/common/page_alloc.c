@@ -185,7 +185,6 @@ PAGE_LIST_HEAD(page_offlined_list);
 /* Broken page list, protected by heap_lock. */
 PAGE_LIST_HEAD(page_broken_list);
 
-
 /*static xen_pfn_t start_mfn = 0;
 static xen_pfn_t present_mfn = 0;
 static unsigned int mapping_started = 0;*/
@@ -703,7 +702,7 @@ static struct page_info *alloc_contiguous_heap_pages(
     unsigned int order, unsigned int memflags,
     struct domain *d, xen_pfn_t next_mfn)
 {
-    unsigned int i, j, zone, count = 0, nodemask_retry = 0;
+    unsigned int i, j, zone, nodemask_retry = 0;
     nodeid_t first_node, node = MEMF_get_node(memflags), req_node = node;
 
     unsigned long request = 1UL << order;
@@ -711,7 +710,7 @@ static struct page_info *alloc_contiguous_heap_pages(
     nodemask_t nodemask = (d != NULL) ? d->node_affinity : node_online_map;
     bool_t need_tlbflush = 0;
     uint32_t tlbflush_timestamp = 0;
-    xen_pfn_t head_mfn;
+    // xen_pfn_t head_mfn;
 
     /* Make sure there are enough bits in memflags for nodeID. */
     BUILD_BUG_ON((_MEMF_bits - _MEMF_node) < (8 * sizeof(nodeid_t)));
@@ -764,11 +763,7 @@ static struct page_info *alloc_contiguous_heap_pages(
      * zone before failing, only calc new node value if we fail to find memory 
      * in target node, this avoids needless computation on fast-path.
      */
-
-    //Print the number of pages in each zone
-    /* for(int n=zone_lo;n<=zone_hi;n++){
-          printk(KERN_WARNING " Zone : %d Available Pages : %lu  \n",n,avail[node][n]);
-    }*/
+   
     for (;;)
     {
         zone = zone_hi;
@@ -781,58 +776,25 @@ static struct page_info *alloc_contiguous_heap_pages(
             /* Find smallest order which can satisfy the request. */
             for (j = order; j <= MAX_ORDER; j++)
             {
-                if ((pg = page_list_remove_head(&heap(node, zone, j))))
-                {
-                    head_mfn = page_to_mfn(pg);
-                    // printk(KERN_WARNING " Head MFN: %lx  \n",head_mfn);
-                    while (page_to_mfn(pg) != next_mfn)
-                    {
 
-                        page_list_add_tail(pg, &heap(node, zone, j));
-                        count++;
-                        count--;
-                        pg = page_list_remove_head(&heap(node, zone, j));
-                        if (page_to_mfn(pg) == head_mfn) /* We have gone through the whole list */
-                        {
-                            break;
+                if (!page_list_empty(&heap(node, zone, j)))
+                {
+                    // printk(KERN_WARNING " Page list not empty... ");
+                    page_list_for_each(pg, &heap(node, zone, j))
+                    {
+                        if (page_to_mfn(pg) == next_mfn)
+                        {                          
+                            page_list_del(pg,&heap(node, zone, j));
+                            goto found;
                         }
                     }
-                    // printk(KERN_WARNING " Last MFN: %lx Count: %d  \n",page_to_mfn(pg),count);
-                    if (page_to_mfn(pg) == next_mfn)
-                    {
-                        printk(KERN_WARNING " Found next MFN: %lx ", page_to_mfn(pg));
-                        page_list_add_tail(pg, &heap(node, zone, j));
-                        goto found;
-                    }
-
                    
-                    //goto found;
-
-                    /* We may have wrong results if the order is different from initial order
-                     * To be corrected later
-                     */
                 }
             }
-
-            //page_list_add_tail(pg, &heap(node, zone, j));
+           
         } while (zone-- > zone_lo); /* careful: unsigned zone may wrap */
 
-   // default_alloc:
-        // If we don't find next mfn in contiguous region...we run the default algorithm...pyuhala
-         printk(KERN_WARNING " Went through zones twice... ");
-        /* Get into while loop for the second time, this time to get a page ...pyuhala */
-        zone = zone_hi;
-        do
-        {
-            /* Check if target node can support the allocation. */
-            if (!avail[node] || (avail[node][zone] < request))
-                continue;
-
-            /* Find smallest order which can satisfy the request. */
-            for (j = order; j <= MAX_ORDER; j++)
-                if ((pg = page_list_remove_head(&heap(node, zone, j))))
-                    goto found;
-        } while (zone-- > zone_lo); /* careful: unsigned zone may wrap */
+   
 
         if ((memflags & MEMF_exact_node) && req_node != NUMA_NO_NODE)
             goto not_found;
@@ -940,7 +902,8 @@ found:
 
     /* Calculate the MFN of the next page to ensure contiguity */
     d->cur_mfn = next_mfn + (1 << order);
-     printk(KERN_WARNING " Domain id: %d ", d->domain_id);
+    //printk(KERN_WARNING " Current MFN: %lx ", d->cur_mfn);
+    // printk(KERN_WARNING " Domain id: %d ", d->domain_id);
 
     return pg;
 }
@@ -978,23 +941,18 @@ static struct page_info *alloc_heap_pages(
 
     if (d != NULL && d->domain_id != 0)
     {
-        if (d->mapping_started )
+        if (d->mapping_started)
         {
             pg = alloc_contiguous_heap_pages(zone_lo, zone_hi, order, memflags, d, d->cur_mfn);
             return pg;
         }
     }
 
-   
-
-        if (0)
-        {
-            pg = get_page_from_pool_heap(page_pool_heap, order);
-            pool_count = pool_count > 0 ? pool_count - 1 : 0; //very useless...to be removed :-)
-           
-        }
-    
-    
+    if (0)
+    {
+        pg = get_page_from_pool_heap(page_pool_heap, order);
+        pool_count = pool_count > 0 ? pool_count - 1 : 0; //very useless...to be removed :-)
+    }
 
     /* Make sure there are enough bits in memflags for nodeID. */
     BUILD_BUG_ON((_MEMF_bits - _MEMF_node) < (8 * sizeof(nodeid_t)));
@@ -1132,7 +1090,6 @@ found:
 
     if (d != NULL)
         d->last_alloc_node = node;
-
 
     for (i = 0; i < (1 << order); i++)
     {
