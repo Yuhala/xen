@@ -369,6 +369,16 @@ struct domain
     int64_t          time_offset_seconds;
 
     /* Begin added attributes....pyuhala */
+    
+    unsigned int mapping_started;
+    xen_pfn_t start_mfn;/* MFN of first page in contiguous memory region */
+    xen_pfn_t end_mfn;  /* MFN of last page in contiguous memory region */
+    xen_pfn_t cur_mfn;  /* Current mfn in p2m mapping */
+
+    /*unsigned int pool_zone;
+    nodeid_t pool_node;
+    unsigned int pool_order;*/
+
     //struct page_info *page_pool;  /* Page pool ie ..large superpage..pyuhala */
     //unsigned long pool_full;  /* Boolean to tell us if this pool contains pages */
     //unsigned long pool_index; /* Index of the present page which has not yet been taken */

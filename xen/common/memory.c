@@ -186,7 +186,7 @@ static void populate_physmap(struct memop_args *a)
     {
         if (i != a->nr_done && hypercall_preempt_check())
         {
-            // printk(KERN_WARNING "Did a hypercall preempt check \n");
+            //printk(KERN_WARNING "Did a hypercall preempt check \n");
             a->preempted = 1;
             //printk(KERN_WARNING "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy 1\n");
             goto out;
@@ -304,6 +304,7 @@ static void populate_physmap(struct memop_args *a)
 
             printk(KERN_WARNING " MFN: %lx GPFN: %lx Extent Order : %u \n", mfn,gpfn, a->extent_order);
             guest_physmap_add_page(d, gpfn, mfn, a->extent_order);
+            
 
             if (!paging_mode_translate(d))
             {

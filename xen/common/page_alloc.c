@@ -185,13 +185,15 @@ PAGE_LIST_HEAD(page_offlined_list);
 /* Broken page list, protected by heap_lock. */
 PAGE_LIST_HEAD(page_broken_list);
 
-/* MFN of first page in contiguous memory region */
-static xen_pfn_t start_mfn = 0;
-/* Present MFN */
-static xen_pfn_t present_mfn = 0;
 
-/* Flag to indicate starting point */
-static unsigned int mapping_started = 0;
+/*static xen_pfn_t start_mfn = 0;
+static xen_pfn_t present_mfn = 0;
+static unsigned int mapping_started = 0;*/
+
+struct page_info *page_pool_heap = NULL; /* Page pool ie ..large superpage..pyuhala */
+unsigned int pool_count = 16;            /* Boolean to tell us if this pool contains pages */
+unsigned long pool_index_heap = 0;       /* Index of the present page which has not yet been taken */
+//unsigned long free_pages = 0; /* Number of 4kb free pages */
 
 /* ************************
  * BOOT-TIME ALLOCATOR
@@ -701,11 +703,11 @@ static struct page_info *alloc_contiguous_heap_pages(
     unsigned int order, unsigned int memflags,
     struct domain *d, xen_pfn_t next_mfn)
 {
-    unsigned int i, j, zone,count = 0, nodemask_retry = 0;
+    unsigned int i, j, zone, count = 0, nodemask_retry = 0;
     nodeid_t first_node, node = MEMF_get_node(memflags), req_node = node;
 
     unsigned long request = 1UL << order;
-    struct page_info *pg , *next_half ;
+    struct page_info *pg, *next_half;
     nodemask_t nodemask = (d != NULL) ? d->node_affinity : node_online_map;
     bool_t need_tlbflush = 0;
     uint32_t tlbflush_timestamp = 0;
@@ -764,7 +766,7 @@ static struct page_info *alloc_contiguous_heap_pages(
      */
 
     //Print the number of pages in each zone
-   /* for(int n=zone_lo;n<=zone_hi;n++){
+    /* for(int n=zone_lo;n<=zone_hi;n++){
           printk(KERN_WARNING " Zone : %d Available Pages : %lu  \n",n,avail[node][n]);
     }*/
     for (;;)
@@ -775,30 +777,61 @@ static struct page_info *alloc_contiguous_heap_pages(
             /* Check if target node can support the allocation. */
             if (!avail[node] || (avail[node][zone] < request))
                 continue;
-             //printk(KERN_WARNING " Zone : %d Zone_Lo : %d  \n",zone,zone_lo);
+            //printk(KERN_WARNING " Zone : %d Zone_Lo : %d  \n",zone,zone_lo);
             /* Find smallest order which can satisfy the request. */
             for (j = order; j <= MAX_ORDER; j++)
+            {
                 if ((pg = page_list_remove_head(&heap(node, zone, j))))
-                {    
+                {
                     head_mfn = page_to_mfn(pg);
                     // printk(KERN_WARNING " Head MFN: %lx  \n",head_mfn);
                     while (page_to_mfn(pg) != next_mfn)
                     {
-                        page_list_add_tail(pg, &heap(node, zone, j));count++;
+
+                        page_list_add_tail(pg, &heap(node, zone, j));
+                        count++;
+                        count--;
                         pg = page_list_remove_head(&heap(node, zone, j));
                         if (page_to_mfn(pg) == head_mfn) /* We have gone through the whole list */
-                           {break;}
+                        {
+                            break;
+                        }
                     }
-                   // printk(KERN_WARNING " Last MFN: %lx Count: %d  \n",page_to_mfn(pg),count);
+                    // printk(KERN_WARNING " Last MFN: %lx Count: %d  \n",page_to_mfn(pg),count);
                     if (page_to_mfn(pg) == next_mfn)
+                    {
+                        printk(KERN_WARNING " Found next MFN: %lx ", page_to_mfn(pg));
+                        page_list_add_tail(pg, &heap(node, zone, j));
                         goto found;
+                    }
+
                    
-                   
+                    //goto found;
+
                     /* We may have wrong results if the order is different from initial order
                      * To be corrected later
                      */
                 }
+            }
+
             //page_list_add_tail(pg, &heap(node, zone, j));
+        } while (zone-- > zone_lo); /* careful: unsigned zone may wrap */
+
+   // default_alloc:
+        // If we don't find next mfn in contiguous region...we run the default algorithm...pyuhala
+         printk(KERN_WARNING " Went through zones twice... ");
+        /* Get into while loop for the second time, this time to get a page ...pyuhala */
+        zone = zone_hi;
+        do
+        {
+            /* Check if target node can support the allocation. */
+            if (!avail[node] || (avail[node][zone] < request))
+                continue;
+
+            /* Find smallest order which can satisfy the request. */
+            for (j = order; j <= MAX_ORDER; j++)
+                if ((pg = page_list_remove_head(&heap(node, zone, j))))
+                    goto found;
         } while (zone-- > zone_lo); /* careful: unsigned zone may wrap */
 
         if ((memflags & MEMF_exact_node) && req_node != NUMA_NO_NODE)
@@ -837,7 +870,7 @@ try_tmem:
     }
 
 not_found:
-    /* No suitable memory blocks. Fail the request. */
+    /* No domain*/
     spin_unlock(&heap_lock);
     return NULL;
 
@@ -846,13 +879,12 @@ found:
 
     while (j != order)
     {
-       // printk(KERN_WARNING "...Halving a chunk... \n");
+        // printk(KERN_WARNING "...Halving a chunk... \n");
         next_half = pg + (1 << --j);
         PFN_ORDER(next_half) = j;
         page_list_add_tail(next_half, &heap(node, zone, j));
         // pg += 1 << j;
         PFN_ORDER(pg) = j;
-      
         /*PFN_ORDER(pg) = --j;
         page_list_add_tail(pg, &heap(node, zone, j));
         pg += 1 << j;*/
@@ -907,12 +939,23 @@ found:
     }
 
     /* Calculate the MFN of the next page to ensure contiguity */
-    present_mfn = next_mfn + (1 << order);
+    d->cur_mfn = next_mfn + (1 << order);
+     printk(KERN_WARNING " Domain id: %d ", d->domain_id);
 
     return pg;
 }
 
 //////////////////////////////////////////////////////////////
+static struct page_info *get_page_from_pool_heap(struct page_info *pool, unsigned int order)
+{
+    struct page_info *pg = NULL;
+    pg = &pool[pool_index_heap];
+    //(*pg).v.free.order = order;
+    // free_pages -= (1 << order);
+    pool_index_heap += (1 << order);
+    PFN_ORDER(pg) = order;
+    return pg;
+}
 
 /* Allocate 2^@order contiguous pages. */
 static struct page_info *alloc_heap_pages(
@@ -924,7 +967,7 @@ static struct page_info *alloc_heap_pages(
     nodeid_t first_node, node = MEMF_get_node(memflags), req_node = node;
 
     unsigned long request = 1UL << order;
-    struct page_info *pg = NULL;
+    struct page_info *pg = NULL, *next_half = NULL;
     nodemask_t nodemask = (d != NULL) ? d->node_affinity : node_online_map;
     bool_t need_tlbflush = 0;
     uint32_t tlbflush_timestamp = 0;
@@ -932,28 +975,27 @@ static struct page_info *alloc_heap_pages(
     /* If mapping has begun, use alloc_contiguous_heap_pages to allocate pages
      * else allocate first page using default function ... pyuhala 
      */
-    if (mapping_started == 1)
+
+    if (d != NULL && d->domain_id != 0)
     {
-        pg = alloc_contiguous_heap_pages(zone_lo, zone_hi, order, memflags, d, present_mfn);
-        if(pg == NULL){
-            goto retry_default;
-        }
-        else{
+        if (d->mapping_started )
+        {
+            pg = alloc_contiguous_heap_pages(zone_lo, zone_hi, order, memflags, d, d->cur_mfn);
             return pg;
         }
-
     }
 
-    if (mapping_started == 0 && order > 15 /*&& !is_control_domain(d)*/)
-    {
-        mapping_started = 1;
+   
 
-        /* Dom0 modified these values...reinitialize them */
-        start_mfn = 0;
-        present_mfn = 0;
-    }
+        if (0)
+        {
+            pg = get_page_from_pool_heap(page_pool_heap, order);
+            pool_count = pool_count > 0 ? pool_count - 1 : 0; //very useless...to be removed :-)
+           
+        }
+    
+    
 
-    retry_default:
     /* Make sure there are enough bits in memflags for nodeID. */
     BUILD_BUG_ON((_MEMF_bits - _MEMF_node) < (8 * sizeof(nodeid_t)));
 
@@ -984,7 +1026,7 @@ static struct page_info *alloc_heap_pages(
      * is made by a domain with sufficient unclaimed pages.
      */
     if ((outstanding_claims + request >
-         total_avail_pages + tmem_freeable_pages()) && 
+         total_avail_pages + tmem_freeable_pages()) &&
         ((memflags & MEMF_no_refcount) ||
          !d || d->outstanding_pages < request))
         goto not_found;
@@ -1064,9 +1106,21 @@ found:
     /* We may have to halve the chunk a number of times. */
     while (j != order)
     {
-        PFN_ORDER(pg) = --j;
+
+        next_half = pg + (1 << --j);
+        PFN_ORDER(next_half) = j;
+        /*if (j == order && pool_count == 16 && order > 15 )
+        {
+            page_pool_heap = next_half;
+            break;
+        }*/
+        page_list_add_tail(next_half, &heap(node, zone, j));
+        // pg += 1 << j;
+        PFN_ORDER(pg) = j;
+
+        /*PFN_ORDER(pg) = --j;
         page_list_add_tail(pg, &heap(node, zone, j));
-        pg += 1 << j;
+        pg += 1 << j;*/
     }
 
     ASSERT(avail[node][zone] >= request);
@@ -1078,6 +1132,7 @@ found:
 
     if (d != NULL)
         d->last_alloc_node = node;
+
 
     for (i = 0; i < (1 << order); i++)
     {
@@ -1118,11 +1173,13 @@ found:
     }
     /* Make sure its not dom0 */
 
-    if (order > 15)
+    if (order > 15 && d->mapping_started != 1)
     {
-        start_mfn = page_to_mfn(pg);
+        d->mapping_started = 1;
+        d->start_mfn = page_to_mfn(pg);
         /* Calculate the MFN of the next page to ensure contiguity */
-        present_mfn = start_mfn + (1 << order);
+        d->cur_mfn = d->start_mfn + (1 << order);
+        printk(KERN_WARNING " Got into condition...not dom0..mapping started\n");
     }
 
     return pg;
