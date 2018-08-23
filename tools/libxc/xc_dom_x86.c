@@ -1105,12 +1105,29 @@ static int x86_shadow(xc_interface *xch, domid_t domid)
     xc_dom_printf(xch, "%s: shadow enabled (mode=0x%x)", __FUNCTION__, mode);
     return rc;
 }
+static int calculate_order(xen_pfn_t total)
+{
+    unsigned int val = 1;
+    int log2;
+    while (total >>= 1)
+    {
+        val <<= 1;
+    }
 
+    log2 = -1;
+    while (val)
+    {
+
+        log2++;
+        val >>= 1;
+    }
+    return log2;
+}
 static int meminit_pv(struct xc_dom_image *dom)
 {
     int rc;
     xen_pfn_t pfn, allocsz, mfn, total, pfn_base;
-    int i, j, k;
+    int i, j, k, order;
     xen_vmemrange_t dummy_vmemrange[1];
     unsigned int dummy_vnode_to_pnode[1];
     xen_vmemrange_t *vmemranges;
@@ -1137,6 +1154,8 @@ static int meminit_pv(struct xc_dom_image *dom)
             return rc;
     }
     fprintf(stderr, "PV vm: Total pages: %lu \n", dom->total_pages);
+
+    order = calculate_order(dom->total_pages);
 
     /* Setup dummy vNUMA information if it's not provided. Note
      * that this is a valid state if libxl doesn't provide any
@@ -1197,7 +1216,7 @@ static int meminit_pv(struct xc_dom_image *dom)
         unsigned int memflags;
         uint64_t pages, super_pages;
         unsigned int pnode = vnode_to_pnode[vmemranges[i].nid];
-        xen_pfn_t extents[SUPERPAGE_BATCH_SIZE];
+        xen_pfn_t extents[(1UL << order)];
         xen_pfn_t pfn_base_idx;
 
         memflags = 0;
@@ -1205,7 +1224,7 @@ static int meminit_pv(struct xc_dom_image *dom)
             memflags |= XENMEMF_exact_node(pnode);
 
         pages = (vmemranges[i].end - vmemranges[i].start) >> PAGE_SHIFT;
-        super_pages = pages >> SUPERPAGE_2MB_SHIFT;
+        super_pages = pages >> order;
         pfn_base = vmemranges[i].start >> PAGE_SHIFT;
 
         for (pfn = pfn_base; pfn < pfn_base + pages; pfn++)
@@ -1214,16 +1233,16 @@ static int meminit_pv(struct xc_dom_image *dom)
         pfn_base_idx = pfn_base;
         while (super_pages)
         {
-            uint64_t count = min_t(uint64_t, super_pages, SUPERPAGE_BATCH_SIZE);
+            uint64_t count = min_t(uint64_t, super_pages, (1UL << order));
             super_pages -= count;
 
             for (pfn = pfn_base_idx, j = 0;
-                 pfn < pfn_base_idx + (count << SUPERPAGE_2MB_SHIFT);
-                 pfn += SUPERPAGE_2MB_NR_PFNS, j++)
+                 pfn < pfn_base_idx + (count << order);
+                 pfn += (1UL << order), j++)
                 extents[j] = dom->p2m_host[pfn];
 
             rc = xc_domain_populate_physmap(dom->xch, dom->guest_domid, count,
-                                            SUPERPAGE_2MB_SHIFT, memflags,
+                                            order, memflags,
                                             extents);
 
             if (rc < 0)
@@ -1235,7 +1254,7 @@ static int meminit_pv(struct xc_dom_image *dom)
             {
                 fprintf(stderr, "Expanding the returned mfns ...\n");
                 mfn = extents[j];
-                for (k = 0; k < SUPERPAGE_2MB_NR_PFNS; k++, pfn++)
+                for (k = 0; k < (1UL << order); k++, pfn++)
                     dom->p2m_host[pfn] = mfn + k;
             }
             pfn_base_idx = pfn;
@@ -1420,7 +1439,7 @@ static int meminit_hvm(struct xc_dom_image *dom)
     // unsigned long cur_pages, cur_pfn;
     int rc;
     xen_pfn_t pfn, allocsz, mfn, total, pfn_base;
-    int i, j, k, pool;
+    int i, j, k, pool, order;
     // unsigned long stat_normal_pages = 0, stat_2mb_pages = 0,
     //stat_1gb_pages = 0;
     // unsigned int memflags = 0;
@@ -1457,9 +1476,11 @@ static int meminit_hvm(struct xc_dom_image *dom)
      * Note that the following hunk is just for the convenience of
      * allocation code. No defaulting happens in libxc.
      */
+     order = calculate_order(dom->total_pages);
 
     if (0)
     {
+       //This is useless...should be removed..pyuhala
         pool = poolinit_hvm(dom);
     }
 
@@ -1515,7 +1536,7 @@ static int meminit_hvm(struct xc_dom_image *dom)
         unsigned int memflags;
         uint64_t pages, super_pages;
         unsigned int pnode = vnode_to_pnode[vmemranges[i].nid];
-        xen_pfn_t extents[SUPERPAGE_BATCH_SIZE];
+        xen_pfn_t extents[(1UL << order)];
         xen_pfn_t pfn_base_idx;
 
         memflags = 0;
@@ -1523,7 +1544,7 @@ static int meminit_hvm(struct xc_dom_image *dom)
             memflags |= XENMEMF_exact_node(pnode);
 
         pages = (vmemranges[i].end - vmemranges[i].start) >> PAGE_SHIFT;
-        super_pages = pages >> SUPERPAGE_2MB_SHIFT;
+        super_pages = pages >> order;
         pfn_base = vmemranges[i].start >> PAGE_SHIFT;
 
         for (pfn = pfn_base; pfn < pfn_base + pages; pfn++)
@@ -1532,18 +1553,18 @@ static int meminit_hvm(struct xc_dom_image *dom)
         pfn_base_idx = pfn_base;
         while (super_pages)
         {
-            uint64_t count = min_t(uint64_t, super_pages, SUPERPAGE_BATCH_SIZE);
+            uint64_t count = min_t(uint64_t, super_pages,(1UL << order));
             super_pages -= count;
 
             for (pfn = pfn_base_idx, j = 0;
-                 pfn < pfn_base_idx + (count << SUPERPAGE_2MB_SHIFT);
-                 pfn += SUPERPAGE_2MB_NR_PFNS, j++)
+                 pfn < pfn_base_idx + (count << order);
+                 pfn += (1UL << order), j++)
                 extents[j] = dom->p2m_host[pfn];
 
             //fprintf(stderr,"Populating exact ffffffffffffff...\n");
 
             rc = xc_domain_populate_physmap(dom->xch, dom->guest_domid, count,
-                                            SUPERPAGE_2MB_SHIFT, memflags,
+                                            order, memflags,
                                             extents);
 
             if (rc < 0)
@@ -1554,7 +1575,7 @@ static int meminit_hvm(struct xc_dom_image *dom)
             for (j = 0; j < rc; j++)
             {
                 mfn = extents[j];
-                for (k = 0; k < SUPERPAGE_2MB_NR_PFNS; k++, pfn++)
+                for (k = 0; k < (1UL << order); k++, pfn++)
                     dom->p2m_host[pfn] = mfn + k;
             }
             pfn_base_idx = pfn;
